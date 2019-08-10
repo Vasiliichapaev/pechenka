@@ -248,7 +248,12 @@ function heroes_data(){
       var heroes_json = JSON.parse(request.responseText);
       for (i in heroes_json){
         heroes[heroes_json[i]["id"]] = [heroes_json[i]["localized_name"], heroes_json[i]["icon"]];
-      };
+	  };
+	  
+	  if (players_data_load()){
+		calculation_all();
+	  };
+
     };
   };
 };
@@ -266,7 +271,7 @@ ranked = function(game){
 
 players_data_load = () => {
   for (let player in players){
-    if (players[player]['load'] != players[player]["id"].length) return false;
+    if (players[player]['load'] != players[player]["id"].length || !heroes) return false;
   };
   return true;
 };
@@ -456,13 +461,14 @@ function calculation(month_table) {
       };
     };
 
+	
+
     if (players[player]["w"] > 0 || players[player]["l"] > 0){
       cl.attributes["month_details"] = month_details(players[player]["month"]);
       cl.addEventListener("mouseenter", popup_push);
-      cl.classList.add("pointer");
+	  cl.classList.add("pointer");
     };
-    cl.attributes["month_player_details"] = [player, players[player]["month"]];
-
+	cl.attributes["month_player_details"] = [player, players[player]["month"]];
   };
 };
 
@@ -594,14 +600,16 @@ function details_clear(){
 
 
 function month_details(month_lst){
-  var hero_lst = [];
-  for (hero in heroes){
-    var hero_games =  month_lst.filter(x => x[3] == hero );
-    if (hero_games.length > 0){
-      hero_lst.push([hero, hero_games]);
-    };
-  };
-  return hero_lst;
+	
+	var hero_lst = [];
+	for (hero in heroes){
+		var hero_games =  month_lst.filter(x => x[3] == hero );
+		
+		if (hero_games.length > 0){
+		hero_lst.push([hero, hero_games]);
+		};
+	};
+	return hero_lst;
 };
 
 
