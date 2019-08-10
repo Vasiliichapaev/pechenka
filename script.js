@@ -3,7 +3,7 @@ Date.prototype.daysInMonth = function() {
 };
 
 var players = {
-  "Печенька": {"id": [905540917], "load": 0, "games": []}
+  "Печенька": {"id": [905540917, 147356773], "load": 0, "games": []}
 
   
 };
