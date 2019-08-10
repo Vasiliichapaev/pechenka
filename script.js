@@ -5,6 +5,7 @@ Date.prototype.daysInMonth = function() {
 var players = {
   "Печенька": {"id": [905540917], "load": 0, "games": []}
 
+  
 };
 
 var players_dta = [];
@@ -281,11 +282,11 @@ function players_data(){
       let plr = player;
       request.onreadystatechange = function(e, player){
         if(request.readyState === 4 && request.status === 200) {
-          let games = JSON.parse(request.responseText);
+		  let games = JSON.parse(request.responseText);
           for (let i in games){
             players[plr]["games"].push([games[i]["start_time"], win_loose(games[i]), ranked(games[i]), games[i]["hero_id"], games[i]["kills"], games[i]["deaths"], games[i]["assists"], games[i]["match_id"]]);
           };         
-          players[plr]["load"] ++;  
+		  players[plr]["load"] ++;  
           if (players_data_load()){
             calculation_all();
           };
