@@ -617,7 +617,7 @@ class Plot extends Div {
 
         this.plot_body.append(this.plot_container);
 
-        this.div.append(this.create_div(player.name, "plot-head"));
+        this.div.append(this.create_div("", "plot-head"));
         this.div.append(this.plot_body);
         plots_div.append(this.div);
     }
