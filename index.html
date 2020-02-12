@@ -2,25 +2,48 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <title>Статистика</title>
-        <link rel="stylesheet" href="style.css" />
-        <link rel="shortcut icon" href="icon.png" type="image/png" />
-        <script src="Chart.min.js"></script>
+        <title>Статистика раков</title>
+        <link rel="stylesheet" href="css/css_reset.css" />
+        <link rel="stylesheet" href="css/style.css" />
+        <link rel="shortcut icon" href="img/icon.png" type="image/png" />
+        <script src="js/classes.js" type="text/javascript"></script>
     </head>
     <body>
-        <div class="header">
-            <div class="statistics lina">Статистика</div>
-            <div class="graphics cristal">График</div>
-        </div>
+        <div class="header"></div>
         <div class="content">
-            <div class="board"></div>
-            <div class="plots_container"></div>
+            <div class="selectors">
+                <div class="date-selector">
+                    <div class="previous-month"><</div>
+                    <div class="date-box">
+                        <div class="current-date">
+                            <div class="current-year"></div>
+                            <div class="current-month"></div>
+                        </div>
+                        <div class="date-list">
+                            <div class="year-list"></div>
+                            <div class="month-list">
+                                <div id="0">Январь</div>
+                                <div id="1">Февраль</div>
+                                <div id="2">Март</div>
+                                <div id="3">Апрель</div>
+                                <div id="4">Май</div>
+                                <div id="5">Июнь</div>
+                                <div id="6">Июль</div>
+                                <div id="7">Август</div>
+                                <div id="8">Сентябрь</div>
+                                <div id="9">Октябрь</div>
+                                <div id="10">Ноябрь</div>
+                                <div id="11">Декабрь</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="next-month">></div>
+                </div>
+            </div>
+            <div class="table"></div>
         </div>
+        <div class="plots"></div>
         <div class="footer"></div>
-
-        <div class="popup"></div>
-        <div class="plot_backgraund"></div>
-        <div class="plot"></div>
-        <script src="script.js" type="text/javascript"></script>
+        <script src="js/index.js" type="text/javascript"></script>
     </body>
 </html>
