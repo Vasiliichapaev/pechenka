@@ -1,20 +1,31 @@
 class Main {
     constructor(players_data) {
-        this.players = [];
-        for (let player_data of players_data) {
-            this.players.push(new Player(player_data));
-        }
+        this.get_date();
+        this.add_players(players_data);
+        this.add_table();
+        this.add_plots();
+    }
 
-        this.heroes = [];
-
+    get_date() {
         this.now = new Date();
         this.now_year = this.now.getFullYear();
         this.now_month = this.now.getMonth();
         this.now_day = this.now.getDate();
+    }
 
+    add_players(players_data) {
+        this.players = [];
+        for (let player_data of players_data) {
+            this.players.push(new Player(player_data));
+        }
+    }
+
+    add_table() {
         this.table = new Table(this);
         this.date_selector = new DateSelector(this.table);
+    }
 
+    add_plots() {
         this.plots_div = document.querySelector(".plots");
         this.plots = [];
         for (let player of this.players) {
@@ -25,6 +36,7 @@ class Main {
     async load_data() {
         let promise_list = [];
 
+        this.heroes = [];
         let heroes = fetch(`https://api.opendota.com/api/heroStats`)
             .then(response => response.json())
             .then(result => {
@@ -43,11 +55,22 @@ class Main {
     }
 
     calculation() {
+        for (let player of this.players) {
+            player.sort_games();
+        }
+
         this.table.calculation();
 
         for (let plot of this.plots) {
             plot.drawing();
         }
+    }
+
+    display() {
+        document.querySelector(".loading").style.visibility = "hidden";
+        this.date_selector.div.style.visibility = "visible";
+        this.table.div.style.visibility = "visible";
+        this.plots_div.style.visibility = "visible";
     }
 }
 
@@ -78,6 +101,11 @@ class Player {
             promise_list.push(response);
         }
         return promise_list;
+    }
+
+    sort_games() {
+        this.games = this.games.filter(elem => elem.hero_id != 0);
+        this.games.sort((a, b) => a.start_time - b.start_time);
     }
 }
 
@@ -144,7 +172,7 @@ class HeadRow extends Div {
         this.cells = [];
 
         let cell = this.create_div("", "player-name");
-        cell.append(this.create_div("", "margin-auto"));
+        cell.append(this.create_div("Игроки", "margin-auto"));
         this.div.append(cell);
 
         for (let day = 1; day <= 31; day++) {
@@ -220,8 +248,6 @@ class Row extends Div {
         this.winrate_cell = this.create_div("");
         cell.append(this.winrate_cell);
         this.div.append(cell);
-
-        this.table.div.append(this.div);
     }
 
     add_cell(day) {
@@ -234,8 +260,6 @@ class Row extends Div {
         this.games = this.player.games.filter(
             elem => elem.start_time >= this.table.start && elem.start_time < this.table.end
         );
-
-        this.games = this.games.filter(elem => elem.hero_id > 0);
 
         this.wins_cell.innerHTML = "";
         this.loose_cell.innerHTML = "";
@@ -608,100 +632,87 @@ class Plot extends Div {
         this.plots_div = plots_div;
         this.player = player;
         this.canvas = document.createElement("canvas");
-
         this.ctx = this.canvas.getContext("2d");
 
         this.plot_body = this.create_div("", "plot-body");
         this.plot_container = this.create_div("", "plot-container");
         this.plot_container.append(this.canvas);
-
         this.plot_body.append(this.plot_container);
 
-        this.div.append(this.create_div("", "plot-head"));
+        this.div.append(this.create_div(player.name, "plot-head"));
         this.div.append(this.plot_body);
-        plots_div.append(this.div);
+        this.plots_div.append(this.div);
     }
 
     async drawing() {
-        this.player.games.sort((a, b) => a.start_time - b.start_time);
-
+        this.games = this.player.games;
         const r = 2.5;
-        const delta = r * 1.2 * 2 ** 0.5;
-        const width = (this.player.games.length + 2) * delta;
+        this.delta = r * 1.2 * 2 ** 0.5;
+        const width = (this.games.length + 2) * this.delta;
         let x = 0;
         let y = 0;
-        let current_height = 0;
-        let max_height = 0;
-        let min_height = 0;
+        let current_y = 0;
+        let max_y = 10;
+        let min_y = -10;
         this.canvas.width = width + 50;
         this.plot_container.style.width = `${width + 50}px`;
 
-        for (let game of this.player.games) {
-            if (game.hero_id == 0) continue;
+        for (let game of this.games) {
             if (this.win_game(game)) {
-                current_height++;
+                current_y++;
             } else {
-                current_height--;
+                current_y--;
             }
-            if (max_height < current_height) max_height = current_height;
-            if (min_height > current_height) min_height = current_height;
+            game.current_y = current_y;
+            if (max_y < current_y) max_y = current_y;
+            if (min_y > current_y) min_y = current_y;
         }
 
-        if (max_height < 10) {
-            max_height = 10;
-        } else {
-            max_height = parseInt((max_height / 10).toFixed()) * 10;
-        }
+        max_y = Math.ceil(max_y / 10) * 10;
+        min_y = Math.floor(min_y / 10) * 10;
 
-        if (min_height > -10) {
-            min_height = -10;
-        } else {
-            min_height = parseInt((min_height / 10).toFixed()) * 10;
-        }
-
-        const height = Math.abs((max_height - min_height + 4) * delta);
+        const height = (max_y - min_y + 4) * this.delta;
 
         this.canvas.height = height;
         this.plot_container.style.height = `${height}px`;
 
-        for (let current_height = min_height; current_height <= max_height; current_height += 10) {
+        for (let current_y = min_y; current_y <= max_y; current_y += 10) {
             x = 0;
-            y = -1 * (current_height - max_height - 2) * delta;
+            y = -1 * (current_y - max_y - 2) * this.delta;
             this.ctx.beginPath();
             this.ctx.moveTo(x, y);
             x = width;
             this.ctx.lineTo(x, y);
             this.ctx.lineWidth = 0.3;
-            if (current_height == 0) this.ctx.lineWidth = 1.2;
+            if (current_y == 0) this.ctx.lineWidth = 1.2;
             this.ctx.stroke();
 
             this.ctx.font = "italic 12px Arial";
             this.ctx.textBaseline = "middle";
             this.ctx.textAlign = "start";
-            this.ctx.fillText(current_height, width + 10, y);
+            this.ctx.fillText(current_y, width + 10, y);
         }
 
         x = width;
-        y = -1 * (min_height - max_height - 2) * delta;
+        y = -1 * (min_y - max_y - 2) * this.delta;
         this.ctx.beginPath();
         this.ctx.moveTo(x, y);
-        y = -1 * -2 * delta;
+        y = -1 * -2 * this.delta;
         this.ctx.lineTo(x, y);
         this.ctx.lineWidth = 0.3;
         this.ctx.stroke();
 
         x = 0;
-        y = -1 * (-max_height - 2) * delta;
+        y = -1 * (-max_y - 2) * this.delta;
 
-        for (let game of this.player.games) {
-            if (game.hero_id == 0) continue;
+        for (let game of this.games) {
             let color = "red";
-            let delta_y = delta;
+            let delta_y = this.delta;
             if (this.win_game(game)) {
                 color = "green";
-                delta_y = -delta;
+                delta_y = -this.delta;
             }
-            x += delta;
+            x += this.delta;
             y += delta_y;
 
             this.ctx.beginPath();
@@ -711,6 +722,53 @@ class Plot extends Div {
         }
 
         this.plot_body.scrollLeft = width;
-        this.plot_body.scrollTop = -1 * (current_height - max_height + 5) * delta;
+        this.plot_body.scrollTop = -1 * (current_y - max_y + 5) * this.delta;
+
+        this.add_pop_up();
+    }
+
+    add_pop_up() {
+        this.pop_up = new PlotPopUP(this);
+        this.plot_container.append(this.pop_up.div);
+        this.canvas.addEventListener("mousemove", e =>
+            this.pop_up.calculation(e.offsetX, e.offsetY)
+        );
+    }
+}
+
+class PlotPopUP extends Div {
+    constructor(plot) {
+        super("plot-pop-up");
+        this.plot = plot;
+        this.games = plot.games;
+        this.div.style.height = plot.plot_container.style.height;
+        this.plot_pop_up_details = this.create_div("", "plot-pop-up-details");
+        this.div.append(this.plot_pop_up_details);
+    }
+
+    calculation(x, y) {
+        let game_number = Math.ceil(x / this.plot.delta);
+        if (game_number > this.games.length) game_number = this.games.length;
+        if (game_number < 1) game_number = 1;
+
+        const game = this.games[game_number - 1];
+
+        let offset = -50;
+        if (game_number < 12) offset = 20;
+        x = game_number * this.plot.delta - 1;
+
+        let h = this.plot.canvas.height;
+        if (y > h - 32) y = h - 32;
+
+        this.plot_pop_up_details.innerHTML = `<p>${game_number}</p><p>${game.current_y}</p>`;
+        this.plot_pop_up_details.style.top = `${y}px`;
+        this.plot_pop_up_details.style.left = `${offset}px`;
+        this.div.style.left = `${x}px`;
+        this.div.style.display = "flex";
+
+        this.div.style.background = "red";
+        if (this.win_game(game)) {
+            this.div.style.background = "green";
+        }
     }
 }
