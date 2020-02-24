@@ -22,13 +22,13 @@ body {
     align-content: center;
     justify-content: center;
     flex-direction: column;
+    visibility: hidden;
 }
 
 .table {
     position: relative;
     flex-direction: column;
     display: flex;
-    visibility: hidden;
 }
 
 .row {
@@ -121,7 +121,6 @@ body {
     display: flex;
     font-size: 25px;
     align-items: center;
-    visibility: hidden;
 }
 
 .date-box {
@@ -232,11 +231,11 @@ body {
     cursor: pointer;
 }
 
-.select-cell {
+.selectable-cell {
     cursor: pointer;
 }
 
-.select-cell:hover {
+.selectable-cell:hover {
     background-color: #dcc9a5;
 }
 
@@ -309,10 +308,10 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    visibility: hidden;
 }
 
 .plot {
+    position: relative;
     margin-top: 30px;
     display: flex;
     flex-direction: column;
@@ -327,19 +326,17 @@ body {
 
 .plot-body {
     width: 1300px;
-    overflow: scroll;
+    overflow: hidden;
     background-color: #eff4f9;
-    height: 500px;
+    height: 350px;
 }
 
 .plot-container {
-    margin: 10px;
     position: relative;
 }
 
 .plot-container canvas {
     position: relative;
-    z-index: 2;
 }
 
 .footer {
@@ -351,6 +348,7 @@ body {
     display: none;
     top: 0px;
     width: 2px;
+    z-index: 1;
 }
 
 .plot-pop-up-details {
@@ -382,4 +380,52 @@ body {
     100% {
         color: azure;
     }
+}
+
+.dont-load {
+    font-size: 30px;
+    margin: auto;
+    padding: 10px;
+    color: red;
+}
+
+.plot-cover {
+    position: absolute;
+    top: 0;
+    z-index: 2;
+}
+
+.plot-cover:active {
+    cursor: all-scroll;
+}
+
+.hero-selector {
+    display: flex;
+    flex-wrap: wrap;
+    width: 378px;
+    position: absolute;
+    background-color: #3b414d;
+    z-index: 20;
+    display: none;
+    left: 0;
+}
+
+.all-hero {
+    width: 378px;
+    height: 25px;
+    color: azure;
+    text-align: center;
+    font-size: 20px;
+}
+
+.hero-selector img {
+    height: 25px;
+    width: 42px;
+}
+
+.plot-hero-select {
+    position: absolute;
+    color: azure;
+    font-size: 20px;
+    left: 0;
 }

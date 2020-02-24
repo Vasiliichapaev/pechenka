@@ -14,10 +14,7 @@ class Main {
     }
 
     add_players(players_data) {
-        this.players = [];
-        for (let player_data of players_data) {
-            this.players.push(new Player(player_data));
-        }
+        this.players = players_data.map(player_data => new Player(player_data));
     }
 
     add_table() {
@@ -27,50 +24,48 @@ class Main {
 
     add_plots() {
         this.plots_div = document.querySelector(".plots");
-        this.plots = [];
-        for (let player of this.players) {
-            this.plots.push(new Plot(this.plots_div, player));
-        }
+        this.plots = this.players.map(player => new Plot(this.plots_div, player, this));
     }
 
-    async load_data() {
-        let promise_list = [];
-
-        this.heroes = [];
-        let heroes = fetch(`https://api.opendota.com/api/heroStats`)
-            .then(response => response.json())
+    load_data() {
+        this.heroes = {};
+        let heroes_promise = fetch(`https://api.opendota.com/api/heroStats`)
+            .then(response => {
+                if (!response.ok) throw Error("Ошибка сервера opendota");
+                return response.json();
+            })
             .then(result => {
-                this.heroes = {};
-                for (let hero of result) {
+                result.forEach(hero => {
                     this.heroes[hero.id] = hero;
-                }
+                });
             });
-        promise_list.push(heroes);
 
-        for (let player of this.players) {
+        let promise_list = [heroes_promise];
+
+        this.players.forEach(player => {
             promise_list = promise_list.concat(player.load_games());
-        }
-        let all_promise = await Promise.all(promise_list);
-        return all_promise;
+        });
+
+        return Promise.all(promise_list);
     }
 
     calculation() {
-        for (let player of this.players) {
-            player.sort_games();
-        }
-
+        this.players.forEach(player => player.sort_games());
         this.table.calculation();
-
-        for (let plot of this.plots) {
-            plot.drawing();
-        }
+        this.plots.forEach(plot => plot.drawing());
+        this.plots.forEach(plot => plot.add_hero_selector());
     }
 
     display() {
-        document.querySelector(".loading").style.visibility = "hidden";
-        this.date_selector.div.style.visibility = "visible";
-        this.table.div.style.visibility = "visible";
-        this.plots_div.style.visibility = "visible";
+        document.querySelector(".loading").style.display = "none";
+        document.querySelector(".content").style.visibility = "visible";
+    }
+
+    error_load_data() {
+        const loading = document.querySelector(".loading");
+        loading.innerHTML = "Нет связи с opendota.";
+        loading.classList.remove("loading");
+        loading.classList.add("dont-load");
     }
 }
 
@@ -78,26 +73,31 @@ class Player {
     constructor(player_data) {
         this.name = player_data.name;
         this.accounts = player_data.accounts;
-        this.games = [];
     }
 
     load_games() {
-        let promise_list = [];
+        this.games = [];
+        const promise_list = [];
         for (let account of this.accounts) {
             let response_string = `https://api.opendota.com/api/players/${account.id}/matches?significant=0`;
             if (account.start_date) {
                 let year = account.start_date[2];
                 let month = account.start_date[1] - 1;
                 let day = account.start_date[0];
-                let days_to_start = (new Date() - new Date(year, month, day)) / (1000 * 3600 * 24);
-                response_string += `?date=${days_to_start.toFixed()}`;
+                let days_to_start = Math.ceil(
+                    (new Date() - new Date(year, month, day)) / (1000 * 3600 * 24)
+                );
+                response_string += `&date=${days_to_start}`;
             }
-
             let response = fetch(response_string)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) throw Error("Ошибка сервера opendota");
+                    return response.json();
+                })
                 .then(result => {
                     this.games = this.games.concat(result);
                 });
+
             promise_list.push(response);
         }
         return promise_list;
@@ -113,36 +113,36 @@ class Table {
     constructor(main) {
         this.main = main;
         this.div = document.querySelector(".table");
-
-        this.year = main.now_year;
-        this.month = main.now_month;
-        this.days = new Date(this.year, this.month + 1, 0).getDate();
-        this.rows = [];
-
-        this.head_row = new HeadRow(this);
-        this.div.append(this.head_row.div);
-
-        for (let player of this.main.players) {
-            this.add_row(player);
-        }
+        this.get_date();
+        this.add_head_row();
+        this.add_rows();
     }
 
-    add_row(player) {
-        const row = new Row(this, player);
-        this.rows.push(row);
-        this.div.append(row.div);
+    get_date() {
+        this.year = this.main.now_year;
+        this.month = this.main.now_month;
+        this.days = new Date(this.year, this.month + 1, 0).getDate();
+    }
+
+    add_head_row() {
+        this.head_row = new HeadRow(this);
+        this.div.append(this.head_row.div);
+    }
+
+    add_rows() {
+        this.rows = this.main.players.map(player => {
+            const row = new Row(this, player);
+            this.div.append(row.div);
+            return row;
+        });
     }
 
     calculation() {
         this.days = new Date(this.year, this.month + 1, 0).getDate();
         this.start = new Date(this.year, this.month) / 1000;
         this.end = this.start + this.days * 24 * 3600;
-
         this.head_row.calculation();
-
-        for (let row of this.rows) {
-            row.calculation();
-        }
+        this.rows.forEach(row => row.calculation());
     }
 }
 
@@ -152,7 +152,7 @@ class Div {
     }
 
     create_div(text, ...classes) {
-        let div = document.createElement("div");
+        const div = document.createElement("div");
         div.innerHTML = text;
         div.classList.add(...classes);
         return div;
@@ -169,12 +169,12 @@ class HeadRow extends Div {
     constructor(table) {
         super("row");
         this.table = table;
-        this.cells = [];
 
         let cell = this.create_div("", "player-name");
         cell.append(this.create_div("Игроки", "margin-auto"));
         this.div.append(cell);
 
+        this.cells = [];
         for (let day = 1; day <= 31; day++) {
             cell = this.create_div("", "cell");
             cell.append(this.create_div(day, "margin-auto"));
@@ -224,23 +224,20 @@ class Row extends Div {
         super("row");
         this.table = table;
         this.player = player;
-        this.cells = [];
 
         let cell = this.create_div("", "player-name");
         cell.append(this.create_div(this.player.name, "player-name-container"));
         this.div.append(cell);
 
-        for (let day = 1; day <= 31; day++) {
-            this.add_cell(day);
-        }
+        this.add_cells();
 
         cell = this.create_div("", "cell");
-        this.wins_cell = this.create_div("");
+        this.wins_cell = this.create_div("", "win");
         cell.append(this.wins_cell);
         this.div.append(cell);
 
         cell = this.create_div("", "cell");
-        this.loose_cell = this.create_div("");
+        this.loose_cell = this.create_div("", "loose");
         cell.append(this.loose_cell);
         this.div.append(cell);
 
@@ -250,23 +247,23 @@ class Row extends Div {
         this.div.append(cell);
     }
 
-    add_cell(day) {
-        const cell = new Cell(this, day);
-        this.cells.push(cell);
-        this.div.append(cell.div);
+    add_cells() {
+        this.cells = [];
+        for (let day = 1; day <= 31; day++) {
+            let cell = new Cell(this, day);
+            this.cells.push(cell);
+            this.div.append(cell.div);
+        }
     }
 
     calculation() {
         this.games = this.player.games.filter(
-            elem => elem.start_time >= this.table.start && elem.start_time < this.table.end
+            game => game.start_time >= this.table.start && game.start_time < this.table.end
         );
 
         this.wins_cell.innerHTML = "";
         this.loose_cell.innerHTML = "";
         this.winrate_cell.innerHTML = "";
-
-        this.wins_cell.classList.remove("win", "loose");
-        this.loose_cell.classList.remove("win", "loose");
         this.winrate_cell.classList.remove("win", "loose");
 
         this.month_wins = 0;
@@ -278,18 +275,11 @@ class Row extends Div {
             this.month_looses += cell.looses;
         }
 
-        if (this.month_wins > 0) {
-            this.wins_cell.classList.add("win");
-            this.wins_cell.innerHTML = this.month_wins;
-        }
-
-        if (this.month_looses > 0) {
-            this.loose_cell.classList.add("loose");
-            this.loose_cell.innerHTML = this.month_looses;
-        }
+        if (this.month_wins > 0) this.wins_cell.innerHTML = this.month_wins;
+        if (this.month_looses > 0) this.loose_cell.innerHTML = this.month_looses;
 
         if (this.month_looses + this.month_wins > 0) {
-            let winrate = (this.month_wins / (this.month_looses + this.month_wins)).toFixed(2);
+            const winrate = (this.month_wins / (this.month_looses + this.month_wins)).toFixed(2);
             this.winrate_cell.innerHTML = winrate;
             if (winrate >= 0.5) {
                 this.winrate_cell.classList.add("win");
@@ -297,6 +287,10 @@ class Row extends Div {
                 this.winrate_cell.classList.add("loose");
             }
         }
+        this.add_pop_up();
+    }
+
+    add_pop_up() {
         this.month_pop_up = new MonthPopUp(this);
         this.month_pop_up.create();
     }
@@ -308,14 +302,18 @@ class Cell extends Div {
         this.row = row;
         this.table = row.table;
         this.day = day;
-        this.win_div = this.create_div("", "win");
-        this.loose_div = this.create_div("", "loose");
+        this.add_win_loose_cells();
+        this.not_display_cell_in_current_month();
         this.pop_up = new PopUp(this);
-        this.div.append(this.win_div, this.loose_div);
-        this.not_display();
     }
 
-    not_display() {
+    add_win_loose_cells() {
+        this.win_div = this.create_div("", "win");
+        this.loose_div = this.create_div("", "loose");
+        this.div.append(this.win_div, this.loose_div);
+    }
+
+    not_display_cell_in_current_month() {
         if (this.day > 27) {
             this.div.classList.remove("not-display");
         }
@@ -325,15 +323,14 @@ class Cell extends Div {
     }
 
     calculation() {
-        this.not_display();
+        this.not_display_cell_in_current_month();
 
-        this.start = this.table.start + (this.day - 1) * 3600 * 24;
-        this.end = this.start + 3600 * 24;
+        const start = this.table.start + (this.day - 1) * 3600 * 24;
+        const end = start + 3600 * 24;
 
         this.games = this.row.games.filter(
-            elem => elem.start_time >= this.start && elem.start_time < this.end
+            game => game.start_time >= start && game.start_time < end
         );
-
         this.games.sort((a, b) => b.start_time - a.start_time);
 
         this.win_games = this.games.filter(game => this.win_game(game));
@@ -345,13 +342,9 @@ class Cell extends Div {
         this.win_div.innerHTML = "";
         this.loose_div.innerHTML = "";
 
-        if (this.wins > 0) {
-            this.win_div.innerHTML = this.wins;
-        }
+        if (this.wins > 0) this.win_div.innerHTML = this.wins;
+        if (this.looses > 0) this.loose_div.innerHTML = this.looses;
 
-        if (this.looses > 0) {
-            this.loose_div.innerHTML = this.looses;
-        }
         this.pop_up.create();
     }
 }
@@ -361,21 +354,20 @@ class PopUp extends Div {
         super("pop-up");
         this.cell = cell;
 
-        let pop_up_head = this.create_div("", "pop-up-head");
+        const pop_up_head = this.create_div("", "pop-up-head");
         pop_up_head.append(this.create_div("", "pop-up-hero"));
         pop_up_head.append(this.create_div("У", "pop-up-cell"));
         pop_up_head.append(this.create_div("С", "pop-up-cell"));
         pop_up_head.append(this.create_div("П", "pop-up-cell"));
 
         this.pop_up_body = this.create_div("", "pop-up-body");
-        this.div.append(pop_up_head);
-        this.div.append(this.pop_up_body);
+        this.div.append(pop_up_head, this.pop_up_body);
     }
 
     create() {
         this.heroes = this.cell.table.main.heroes;
 
-        this.cell.div.classList.remove("select-cell");
+        this.cell.div.classList.remove("selectable-cell");
         if (this.cell.div.children[2]) this.cell.div.children[2].remove();
 
         for (let row = this.pop_up_body.children.length - 1; row >= 0; row--) {
@@ -411,7 +403,7 @@ class PopUp extends Div {
             this.pop_up_body.append(pop_up_row);
         }
 
-        this.cell.div.classList.add("select-cell");
+        this.cell.div.classList.add("selectable-cell");
         this.cell.div.append(this.div);
     }
 }
@@ -423,21 +415,20 @@ class MonthPopUp extends Div {
         this.cell = row.div.children[34];
         this.games = row.games;
 
-        let pop_up_head = this.create_div("", "pop-up-head");
+        const pop_up_head = this.create_div("", "pop-up-head");
         pop_up_head.append(this.create_div("", "pop-up-hero"));
         pop_up_head.append(this.create_div("W", "pop-up-cell", "green"));
         pop_up_head.append(this.create_div("L", "pop-up-cell", "red"));
         pop_up_head.append(this.create_div("W/(W+L)", "pop-up-winrate-cell"));
 
         this.pop_up_body = this.create_div("", "pop-up-body");
-        this.div.append(pop_up_head);
-        this.div.append(this.pop_up_body);
+        this.div.append(pop_up_head, this.pop_up_body);
     }
 
     create() {
         this.heroes = this.row.table.main.heroes;
 
-        this.cell.classList.remove("select-cell");
+        this.cell.classList.remove("selectable-cell");
         if (this.cell.children[1]) this.cell.children[1].remove();
 
         for (let row = this.pop_up_body.children.length - 1; row >= 0; row--) {
@@ -446,8 +437,8 @@ class MonthPopUp extends Div {
 
         if (this.games.length == 0) return;
 
-        let month_heroes_id = new Set();
-        let hero_games = [];
+        const month_heroes_id = new Set();
+        const hero_games = [];
 
         for (let game of this.games) {
             month_heroes_id.add(game.hero_id);
@@ -455,12 +446,9 @@ class MonthPopUp extends Div {
 
         for (let id of month_heroes_id) {
             let games = this.games.filter(game => game.hero_id == id);
-            let win_games_count = games.filter(game => this.win_game(game)).length;
-            let loose_games_count = games.filter(game => !this.win_game(game)).length;
-            hero_games.push([
-                id,
-                [win_games_count, loose_games_count, win_games_count + loose_games_count]
-            ]);
+            let win_count = games.filter(game => this.win_game(game)).length;
+            let loose_count = games.filter(game => !this.win_game(game)).length;
+            hero_games.push([id, [win_count, loose_count, win_count + loose_count]]);
         }
 
         hero_games.sort((a, b) => b[1][2] - a[1][2]);
@@ -493,7 +481,7 @@ class MonthPopUp extends Div {
             this.pop_up_body.append(pop_up_row);
         }
 
-        this.cell.classList.add("select-cell");
+        this.cell.classList.add("selectable-cell");
         this.cell.append(this.div);
     }
 }
@@ -507,9 +495,9 @@ class DateSelector {
 
         this.div = document.querySelector(".date-selector");
 
-        let previous_month = this.div.children[0];
-        let date_box = this.div.children[1];
-        let next_month = this.div.children[2];
+        const previous_month = this.div.children[0];
+        const date_box = this.div.children[1];
+        const next_month = this.div.children[2];
 
         previous_month.addEventListener("click", () => this.previous_month());
         next_month.addEventListener("click", () => this.next_month());
@@ -519,8 +507,8 @@ class DateSelector {
             if (e.key === "ArrowRight") this.next_month();
         });
 
-        let current_date = date_box.children[0];
-        let date_list = date_box.children[1];
+        const current_date = date_box.children[0];
+        const date_list = date_box.children[1];
         date_list.addEventListener("mouseleave", () => this.calculation());
 
         this.year_div = current_date.children[0];
@@ -626,7 +614,7 @@ class DateSelector {
 }
 
 class Plot extends Div {
-    constructor(plots_div, player) {
+    constructor(plots_div, player, main) {
         super("plot");
 
         this.plots_div = plots_div;
@@ -636,19 +624,37 @@ class Plot extends Div {
 
         this.plot_body = this.create_div("", "plot-body");
         this.plot_container = this.create_div("", "plot-container");
-        this.plot_container.append(this.canvas);
+        this.plot_cover = this.create_div("", "plot-cover");
+        this.plot_cover.addEventListener("mousemove", e => this.plot_scroll(e));
+        this.plot_container.append(this.canvas, this.plot_cover);
         this.plot_body.append(this.plot_container);
+
+        this.plot_cover.addEventListener("mousedown", e => {
+            this.mousedown = true;
+        });
+        document.addEventListener("mouseup", e => {
+            this.mousedown = false;
+        });
 
         this.div.append(this.create_div(player.name, "plot-head"));
         this.div.append(this.plot_body);
+
         this.plots_div.append(this.div);
     }
 
-    async drawing() {
-        this.games = this.player.games;
+    async drawing(hero_id) {
+        this.remove_pop_up();
+
+        if (hero_id) {
+            this.games = this.player.games.filter(game => game.hero_id == hero_id);
+        } else {
+            this.games = this.player.games;
+        }
+
         const r = 2.5;
         this.delta = r * 1.2 * 2 ** 0.5;
-        const width = (this.games.length + 2) * this.delta;
+        let width = (this.games.length + 2) * this.delta;
+        if (width < 1250) width = 1250;
         let x = 0;
         let y = 0;
         let current_y = 0;
@@ -656,6 +662,7 @@ class Plot extends Div {
         let min_y = -10;
         this.canvas.width = width + 50;
         this.plot_container.style.width = `${width + 50}px`;
+        this.plot_cover.style.width = `${width + 50}px`;
 
         for (let game of this.games) {
             if (this.win_game(game)) {
@@ -668,13 +675,20 @@ class Plot extends Div {
             if (min_y > current_y) min_y = current_y;
         }
 
+        if (max_y - min_y < 80) {
+            const dy = (80 - (max_y - min_y)) / 2;
+            max_y += dy;
+            min_y -= dy;
+        }
+
         max_y = Math.ceil(max_y / 10) * 10;
         min_y = Math.floor(min_y / 10) * 10;
 
-        const height = (max_y - min_y + 4) * this.delta;
+        let height = (max_y - min_y + 4) * this.delta;
 
         this.canvas.height = height;
         this.plot_container.style.height = `${height}px`;
+        this.plot_cover.style.height = `${height}px`;
 
         for (let current_y = min_y; current_y <= max_y; current_y += 10) {
             x = 0;
@@ -702,6 +716,8 @@ class Plot extends Div {
         this.ctx.lineWidth = 0.3;
         this.ctx.stroke();
 
+        if (this.games.length == 0) return;
+
         x = 0;
         y = -1 * (-max_y - 2) * this.delta;
 
@@ -725,14 +741,29 @@ class Plot extends Div {
         this.plot_body.scrollTop = -1 * (current_y - max_y + 5) * this.delta;
 
         this.add_pop_up();
+        this.mousedown = false;
+    }
+
+    add_hero_selector() {
+        this.hero_selector = new HeroSelector(this, main.heroes);
+    }
+
+    remove_pop_up() {
+        if (this.pop_up) this.pop_up.div.remove();
     }
 
     add_pop_up() {
         this.pop_up = new PlotPopUP(this);
         this.plot_container.append(this.pop_up.div);
-        this.canvas.addEventListener("mousemove", e =>
-            this.pop_up.calculation(e.offsetX, e.offsetY)
-        );
+    }
+
+    plot_scroll(e) {
+        if (this.mousedown) {
+            this.plot_body.scrollLeft -= e.movementX;
+            this.plot_body.scrollTop -= e.movementY;
+        } else {
+            this.pop_up.calculation(e.offsetX, e.offsetY);
+        }
     }
 }
 
@@ -770,5 +801,51 @@ class PlotPopUP extends Div {
         if (this.win_game(game)) {
             this.div.style.background = "green";
         }
+    }
+}
+
+class HeroSelector extends Div {
+    constructor(plot, heroes) {
+        super("hero-selector");
+        this.heroes = heroes;
+        this.plot = plot;
+
+        this.all_heroes = this.create_div("Все герои", "all-hero");
+        this.all_heroes.addEventListener("click", e => this.hide_selector(e));
+
+        this.div.append(this.all_heroes);
+
+        this.plot_hero_select = this.create_div("Все герои", "plot-hero-select");
+        plot.div.append(this.plot_hero_select);
+
+        this.plot_hero_select.addEventListener("click", () => this.show_selector());
+
+        for (let id in this.heroes) {
+            let img_url = this.heroes[id].img;
+            let hero_img = document.createElement("img");
+
+            hero_img.addEventListener("click", e => this.hide_selector(e));
+
+            hero_img.src = `https://api.opendota.com${img_url}`;
+            hero_img.id = id;
+            this.div.append(hero_img);
+        }
+        plot.div.append(this.div);
+    }
+
+    show_selector() {
+        this.div.style.display = "flex";
+    }
+
+    hide_selector(e) {
+        const id = e.target.id;
+        if (id == "") {
+            this.plot.drawing();
+            this.plot_hero_select.innerHTML = "Все герои";
+        } else {
+            this.plot.drawing(id);
+            this.plot_hero_select.innerHTML = this.heroes[id].localized_name;
+        }
+        this.div.style.display = "none";
     }
 }
