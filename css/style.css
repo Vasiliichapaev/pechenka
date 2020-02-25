@@ -328,7 +328,7 @@ body {
     width: 1300px;
     overflow: hidden;
     background-color: #eff4f9;
-    height: 350px;
+    height: 360px;
 }
 
 .plot-container {
@@ -408,6 +408,7 @@ body {
     z-index: 20;
     display: none;
     left: 0;
+    top: 25px;
 }
 
 .all-hero {
